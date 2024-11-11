@@ -10,12 +10,17 @@ class API:
             return json.loads(response.text)
         else: raise ValueError(f'Произошла ошибка. Код статуса: {response.status_code}')
 
+    def check_user_exists(self, username):
+        url = f'https://api.github.com/users/{username}'
+        response = requests.get(url)
+        return response.status_code == 200
+
 class Model:
-    def __init__(self, api_client):
-        self.api_client: API = api_client
+    def __init__(self, api):
+        self.api: API = api
 
     def make_events_list(self, username):
-        events = self.api_client.get_events(username)
+        events = self.api.get_events(username)
         if not events:
             return []
         return [f'{event['type']}&{event['repo']['name']}' for event in events]
@@ -73,16 +78,22 @@ class Controller:
     def run(self):
         self.view.show_title()
         while True:
-            user_input = self.view.get_user_input()
+            username = self.view.get_user_input()
             try:
-                events = self.model.make_events_list(user_input)
+                if not self.model.api.check_user_exists(username): 
+                    raise ValueError(f'Пользователь {username} не найден')
+
+                events = self.model.make_events_list(username)
                 if not events:
                     self.view.show_error()
                     continue
                 counted_events = self.model.count_events(events)
                 self.view.show_events(counted_events)
+
+            except ValueError as e:
+                self.view.show_message(e)
             except Exception as e: 
-                print(str(e))
+                self.view.show_message(f'Произошла непредвиденная ошибка: {e}')
 
 if __name__=='__main__':
     api_client = API()

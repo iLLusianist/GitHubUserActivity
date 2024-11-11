@@ -1,40 +1,27 @@
 import requests
 import json
+from collections import Counter
 
-class Model:
-    def __init__(self):
-        self.status_codes = {
-            301: 0,
-            304: 0,
-            403: 0,
-            404: 0
-            }
-
+class API:
     def get_events(self, username):
         url = f'https://api.github.com/users/{username}/events'
         response = requests.get(url)
-        if self.check_response_status(response.status_code) == 1:
-            content = response.text
-            return json.loads(content)
+        if response.ok:
+            return json.loads(response.text)
         else: raise ValueError(f'Произошла ошибка. Код статуса: {response.status_code}')
 
-    def check_response_status(self, status_code):
-        return self.status_codes[status_code]
+class Model:
+    def __init__(self, api_client):
+        self.api_client: API = api_client
 
-    def make_events_list(self, username = 'iLLusianist'):
-        events = self.get_events(username)
-        merged_events_list = []
-        for event in events:
-            merged_events_list.append(f'{event['type']}&{event['repo']['name']}')
-        return merged_events_list
+    def make_events_list(self, username):
+        events = self.api_client.get_events(username)
+        if not events:
+            return []
+        return [f'{event['type']}&{event['repo']['name']}' for event in events]
         
     def count_events(self, events_list):
-        counted_events = []
-        for event in sorted(set(events_list)):
-            event_count = events_list.count(event)
-            event_text = event.split('&')
-            counted_events.append([event_text[0], event_text[1], event_count])
-        return counted_events
+        return [[key.split('&')[0], key.split('&')[1], value] for key, value in Counter(events_list).items()]
 
 class View:
     def __init__(self):
@@ -54,25 +41,29 @@ class View:
             'SponsorshipEvent': 'Спонсированл разработчика или проект',
             'WatchEvent': 'Начал следить за репозиторием',
             }
+        self.username = 'iLLusianist'
 
-    def __str__(self):
-        return('---GitHub User Activity---')
+    def show_title(self):
+        print('---GitHub User Activity---')
 
-    def get_user_input(self, prompt: str):
-        return input(prompt)
-
-    def show_events(self, events):
-        for event in events:
-            event_type_description = ''
-            event_type, event_repo, event_count = event[0], event[1], event[2]
-            if str(event_type) in self.event_type_description:
-                event_type_description = self.event_type_description[str(event_type)]
-            else: event_type_description = 'Неизвестный тип события'
-            print_events = f'{event_type_description} {event_repo} {event_count} раз(а)'
-            self.show_message(print_events)
+    def get_user_input(self):
+        self.username = input('\nВведите ник пользователя GitHub > ')
+        return self.username
 
     def show_message(self, message):
         print(message)
+
+    def show_error(self):
+        self.show_message(f'Пользователь с ником {self.username} не имеет активности за последние 90 дней')
+
+    def show_events(self, events):
+        self.show_message(f'\nДействия пользователя {self.username} за последние 90 дней:\n------')
+        for event in events:
+            event_type, event_repo, event_count = event
+            event_type_description = self.event_type_description.get(event_type, 'Неизвестный тип события')
+            print_events = f'{event_type_description} {event_repo} {event_count} раз(а)'
+            self.show_message(print_events)
+        self.show_message('------')
         
 class Controller:
     def __init__(self, model, view):
@@ -80,21 +71,22 @@ class Controller:
         self.model: Model = model
     
     def run(self):
-        print(View())
+        self.view.show_title()
         while True:
-            user_input = self.view.get_user_input('\nВведите ник пользователя GitHub > ')
+            user_input = self.view.get_user_input()
             try:
                 events = self.model.make_events_list(user_input)
-                if events == []:
-                    self.view.show_message(f'Пользователь с ником {user_input} не имеет активности за последние 90 дней')
+                if not events:
+                    self.view.show_error()
+                    continue
                 counted_events = self.model.count_events(events)
-                if counted_events:
-                    self.view.show_events(counted_events)
-            except Exception as ex: 
-                print(ex)
+                self.view.show_events(counted_events)
+            except Exception as e: 
+                print(str(e))
 
 if __name__=='__main__':
+    api_client = API()
     view = View()
-    model = Model()
+    model = Model(api_client)
     controller = Controller(model, view)
     controller.run()

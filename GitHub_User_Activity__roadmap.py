@@ -2,18 +2,23 @@ import requests
 import json
 from collections import Counter
 
+
 class API:
-    def get_events(self, username):
+    @staticmethod
+    def get_events(username):
         url = f'https://api.github.com/users/{username}/events'
         response = requests.get(url)
         if response.ok:
             return json.loads(response.text)
-        else: raise ValueError(f'Произошла ошибка. Код статуса: {response.status_code}')
+        else:
+            raise ValueError(f'Произошла ошибка. Код статуса: {response.status_code}')
 
-    def check_user_exists(self, username):
+    @staticmethod
+    def check_user_exists(username):
         url = f'https://api.github.com/users/{username}'
         response = requests.get(url)
         return response.status_code == 200
+
 
 class Model:
     def __init__(self, api):
@@ -24,9 +29,11 @@ class Model:
         if not events:
             return []
         return [f'{event['type']}&{event['repo']['name']}' for event in events]
-        
-    def count_events(self, events_list):
+
+    @staticmethod
+    def count_events(events_list):
         return [[key.split('&')[0], key.split('&')[1], value] for key, value in Counter(events_list).items()]
+
 
 class View:
     def __init__(self):
@@ -37,25 +44,27 @@ class View:
             'ForkEvent': 'Создана вилка репозитория для других пользователей',
             'GollumEvent': 'Обновлена Wiki страницы',
             'IssueCommentEvent': 'Добавил комментарий к issue',
-            'IssuesEvent': 'Открыл, закрыл или измененил статус issue',
-            'MemberEvent': 'Измененил настройки участников',
+            'IssuesEvent': 'Открыл, закрыл или изменил статус issue',
+            'MemberEvent': 'Изменил настройки участников',
             'PublicEvent': 'Сделал репозиторий публичным',
             'PullRequestEvent': 'Pull request',
             'PushEvent': 'Отправил изменения в репозиторий',
             'ReleaseEvent': 'Выпустил новую версии проекта',
-            'SponsorshipEvent': 'Спонсированл разработчика или проект',
+            'SponsorshipEvent': 'Спонсировал разработчика или проект',
             'WatchEvent': 'Начал следить за репозиторием',
-            }
+        }
         self.username = 'iLLusianist'
 
-    def show_title(self):
+    @staticmethod
+    def show_title():
         print('---GitHub User Activity---')
 
     def get_user_input(self):
         self.username = input('\nВведите ник пользователя GitHub > ')
         return self.username
 
-    def show_message(self, message):
+    @staticmethod
+    def show_message(message):
         print(message)
 
     def show_error(self):
@@ -69,18 +78,19 @@ class View:
             print_events = f'{event_type_description} {event_repo} {event_count} раз(а)'
             self.show_message(print_events)
         self.show_message('------')
-        
+
+
 class Controller:
     def __init__(self, model, view):
         self.view: View = view
         self.model: Model = model
-    
+
     def run(self):
         self.view.show_title()
         while True:
             username = self.view.get_user_input()
             try:
-                if not self.model.api.check_user_exists(username): 
+                if not self.model.api.check_user_exists(username):
                     raise ValueError(f'Пользователь {username} не найден')
 
                 events = self.model.make_events_list(username)
@@ -92,10 +102,11 @@ class Controller:
 
             except ValueError as e:
                 self.view.show_message(e)
-            except Exception as e: 
+            except Exception as e:
                 self.view.show_message(f'Произошла непредвиденная ошибка: {e}')
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     api_client = API()
     view = View()
     model = Model(api_client)
